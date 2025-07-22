@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitácora Diaria de Denis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .quadrant {
+            min-height: 200px;
+            transition: background-color 0.3s ease;
+        }
+        .task-card {
+            cursor: grab;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .task-card:active {
+            cursor: grabbing;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: scale(1.02);
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        .drag-over {
+            background-color: rgba(255,255,255,0.1) !important;
+        }
+        .profile-btn.active {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            font-weight: 600;
+        }
+        /* Custom scrollbar for dark mode */
+        .tasks-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .tasks-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .tasks-container::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* gray-600 */
+            border-radius: 20px;
+            border: 3px solid transparent;
+            background-clip: content-box;
+        }
+        .tasks-container::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280; /* gray-500 */
+        }
+        /* Style for datetime-local icon in dark mode */
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <div id="app-container" class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+        <!-- Header: Profile Selector and Actions -->
+        <header class="mb-6 md:flex md:items-center md:justify-between">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Bitácora Diaria de Denis</h1>
+                <p class="text-gray-500 dark:text-gray-400">Organiza tus tareas diarias por prioridad.</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center space-x-2">
+                <button id="import-json-btn" class="flex items-center space-x-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors">
+                    <i data-lucide="upload"></i>
+                    <span>Importar JSON</span>
+                </button>
+                <button id="export-json-btn" class="flex items-center space-x-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors">
+                    <i data-lucide="download"></i>
+                    <span>Exportar a JSON</span>
+                </button>
+                <input type="file" id="import-json-input" class="hidden" accept="application/json">
+            </div>
+        </header>
+
+        <!-- Profile Selector -->
+        <div class="mb-6">
+            <div class="bg-gray-200 dark:bg-gray-800 p-1 rounded-lg flex items-center justify-center md:justify-start space-x-1">
+                <button data-profile="Círculo" class="profile-btn w-full md:w-auto text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700 py-2 px-4 rounded-md transition-colors text-sm font-medium">Círculo</button>
+                <button data-profile="Polo IT Chaco" class="profile-btn w-full md:w-auto text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700 py-2 px-4 rounded-md transition-colors text-sm font-medium">Polo IT Chaco</button>
+                <button data-profile="Personal" class="profile-btn w-full md:w-auto text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700 py-2 px-4 rounded-md transition-colors text-sm font-medium">Personal</button>
+            </div>
+        </div>
+
+        <!-- Eisenhower Matrix -->
+        <main id="matrix-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <!-- Quadrant 1: Do -->
+            <div id="do" class="quadrant bg-red-100 dark:bg-red-900/40 rounded-xl p-4 flex flex-col" data-quadrant-id="do">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-red-800 dark:text-red-200">Importante y Urgente</h2>
+                    <p class="text-sm text-red-600 dark:text-red-400">Hacer ahora</p>
+                </div>
+                <div class="tasks-container flex-grow space-y-3 overflow-y-auto pr-1"></div>
+            </div>
+            <!-- Quadrant 2: Schedule -->
+            <div id="schedule" class="quadrant bg-blue-100 dark:bg-blue-900/40 rounded-xl p-4 flex flex-col" data-quadrant-id="schedule">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-blue-800 dark:text-blue-200">Importante y No Urgente</h2>
+                    <p class="text-sm text-blue-600 dark:text-blue-400">Planificar</p>
+                </div>
+                <div class="tasks-container flex-grow space-y-3 overflow-y-auto pr-1"></div>
+            </div>
+            <!-- Quadrant 3: Delegate -->
+            <div id="delegate" class="quadrant bg-yellow-100 dark:bg-yellow-900/30 rounded-xl p-4 flex flex-col" data-quadrant-id="delegate">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-yellow-800 dark:text-yellow-200">No Importante y Urgente</h2>
+                    <p class="text-sm text-yellow-600 dark:text-yellow-400">Delegar</p>
+                </div>
+                <div class="tasks-container flex-grow space-y-3 overflow-y-auto pr-1"></div>
+            </div>
+            <!-- Quadrant 4: Delete -->
+            <div id="delete" class="quadrant bg-gray-200 dark:bg-gray-800 rounded-xl p-4 flex flex-col" data-quadrant-id="delete">
+                <div class="mb-4">
+                    <h2 class="text-lg font-bold text-gray-800 dark:text-gray-200">No Importante y No Urgente</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Eliminar</p>
+                </div>
+                <div class="tasks-container flex-grow space-y-3 overflow-y-auto pr-1"></div>
+            </div>
+        </main>
+
+        <!-- Floating Action Button -->
+        <button id="add-task-fab" class="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-transform transform hover:scale-110">
+            <i data-lucide="plus" class="h-6 w-6"></i>
+        </button>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+            <button id="close-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <i data-lucide="x"></i>
+            </button>
+            <h3 id="modal-title" class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Nueva Tarea</h3>
+            <form id="task-form">
+                <input type="hidden" id="task-id">
+                <div class="mb-4">
+                    <label for="task-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título</label>
+                    <input type="text" id="task-title" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
+                </div>
+                <div class="mb-4">
+                    <label for="task-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
+                    <textarea id="task-description" rows="3" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="task-due-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de Vencimiento</label>
+                    <input type="datetime-local" id="task-due-date" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                 <div class="mb-4">
+                    <label for="task-quadrant" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cuadrante</label>
+                    <select id="task-quadrant" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="do">Importante y Urgente</option>
+                        <option value="schedule">Importante y No Urgente</option>
+                        <option value="delegate">No Importante y Urgente</option>
+                        <option value="delete">No Importante y No Urgente</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="delete-task-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg hidden">Eliminar</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Guardar Tarea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Import Confirmation Modal -->
+    <div id="import-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Importar Tareas</h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-6">¿Deseas eliminar las tareas existentes antes de importar las nuevas?</p>
+            <div class="flex justify-end space-x-3">
+                <button id="import-keep-btn" class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg">Mantener y Añadir</button>
+                <button id="import-replace-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Eliminar y Reemplazar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase -->
+    <script type="module">
+        // Importa las funciones que necesitas de los SDKs de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Configuración de Firebase (proporcionada por el entorno)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'eisenhower-matrix-app-default';
+
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Estado de la aplicación
+        let currentProfile = 'Personal'; // Start on Personal profile to see initial tasks
+        let tasks = {};
+        let unsubscribe; // Para la escucha de Firestore
+        let initialLoadDone = false; // Flag para controlar la carga inicial
+
+        // --- ELEMENTOS DEL DOM ---
+        const profileButtons = document.querySelectorAll('.profile-btn');
+        const matrixContainer = document.getElementById('matrix-container');
+        const addTaskFab = document.getElementById('add-task-fab');
+        const taskModal = document.getElementById('task-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const taskForm = document.getElementById('task-form');
+        const modalTitle = document.getElementById('modal-title');
+        const deleteTaskBtn = document.getElementById('delete-task-btn');
+        const exportJsonBtn = document.getElementById('export-json-btn');
+        const importJsonBtn = document.getElementById('import-json-btn');
+        const importJsonInput = document.getElementById('import-json-input');
+        const importConfirmModal = document.getElementById('import-confirm-modal');
+        const importKeepBtn = document.getElementById('import-keep-btn');
+        const importReplaceBtn = document.getElementById('import-replace-btn');
+
+        // --- LÓGICA DE AUTENTICACIÓN ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Usuario autenticado:", user.uid);
+                if (!initialLoadDone) {
+                    await addInitialPersonalTasksIfNeeded();
+                    setActiveProfile(currentProfile);
+                    initialLoadDone = true;
+                }
+            } else {
+                console.log("No hay usuario, intentando iniciar sesión...");
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) {
+                    signInWithCustomToken(auth, token).catch(error => {
+                        console.error("Error al iniciar sesión con token personalizado:", error);
+                    });
+                } else {
+                    signInAnonymously(auth).catch(error => {
+                        console.error("Error en la autenticación anónima:", error);
+                    });
+                }
+            }
+        });
+
+        // --- MANEJO DE PERFILES ---
+        function setActiveProfile(profileId) {
+            currentProfile = profileId;
+            tasks = {}; // Limpiar tareas al cambiar de perfil
+            profileButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.profile === profileId);
+            });
+            document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
+            subscribeToTasks();
+        }
+
+        profileButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                setActiveProfile(button.dataset.profile);
+            });
+        });
+        
+        // --- LÓGICA DE FIRESTORE ---
+        function getTasksCollectionRef(profileId) {
+            if (!auth.currentUser) return null;
+            const profile = profileId || currentProfile;
+            return collection(db, 'artifacts', appId, 'public', 'data', profile);
+        }
+
+        function subscribeToTasks() {
+            if (unsubscribe) unsubscribe();
+            const tasksCollectionRef = getTasksCollectionRef();
+            if (!tasksCollectionRef) return;
+            unsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => {
+                tasks = {};
+                snapshot.docs.forEach(doc => {
+                    tasks[doc.id] = { id: doc.id, ...doc.data() };
+                });
+                renderAllTasks();
+            }, (error) => {
+                console.error("Error en el listener de Firestore:", error);
+            });
+        }
+        
+        // --- RENDERIZADO DE TAREAS ---
+        function renderAllTasks() {
+            document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
+            Object.values(tasks).forEach(task => {
+                const quadrant = document.querySelector(`[data-quadrant-id="${task.quadrant}"] .tasks-container`);
+                if (quadrant) {
+                    quadrant.appendChild(createTaskCard(task));
+                }
+            });
+            lucide.createIcons();
+        }
+
+        function createTaskCard(task) {
+            const card = document.createElement('div');
+            card.className = `task-card bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${task.completed ? 'opacity-60' : ''}`;
+            card.setAttribute('draggable', 'true');
+            card.dataset.taskId = task.id;
+
+            const formattedDate = task.dueDate ? new Date(task.dueDate).toLocaleString('es-AR', {
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            }) : '';
+
+            card.innerHTML = `
+                <div class="flex items-start justify-between">
+                    <h4 class="font-semibold text-gray-800 dark:text-gray-100 break-words ${task.completed ? 'line-through' : ''}">${task.title}</h4>
+                    <input type="checkbox" class="task-checkbox ml-2 mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-gray-100 dark:bg-gray-900" ${task.completed ? 'checked' : ''}>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words ${task.completed ? 'line-through' : ''}">${task.description || ''}</p>
+                ${task.dueDate ? `
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center">
+                    <i data-lucide="calendar" class="h-3 w-3 mr-1.5"></i>
+                    <span>${formattedDate}</span>
+                </div>` : ''}
+                <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <div class="text-xs text-gray-400">ID: ${task.id.substring(0, 4)}</div>
+                    <div class="flex items-center space-x-2">
+                        <button class="edit-task-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Editar Tarea">
+                            <i data-lucide="edit-2" class="h-4 w-4"></i>
+                        </button>
+                        <div class="relative md:hidden">
+                            <button class="move-task-menu-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                                <i data-lucide="move-arrows" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            card.querySelector('.task-checkbox').addEventListener('change', (e) => toggleTaskCompletion(task.id, e.target.checked));
+            card.querySelector('.edit-task-btn').addEventListener('click', () => openTaskModal(task.id));
+            card.addEventListener('dragstart', handleDragStart);
+            const moveMenuBtn = card.querySelector('.move-task-menu-btn');
+            if (moveMenuBtn) {
+                moveMenuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showMoveMenu(e.currentTarget, task.id, task.quadrant);
+                });
+            }
+            return card;
+        }
+
+        // --- MANEJO DEL MODAL DE TAREAS ---
+        function openTaskModal(taskId = null) {
+            taskForm.reset();
+            if (taskId) {
+                const task = tasks[taskId];
+                modalTitle.textContent = 'Editar Tarea';
+                document.getElementById('task-id').value = task.id;
+                document.getElementById('task-title').value = task.title;
+                document.getElementById('task-description').value = task.description || '';
+                document.getElementById('task-due-date').value = task.dueDate ? task.dueDate.substring(0, 16) : '';
+                document.getElementById('task-quadrant').value = task.quadrant;
+                deleteTaskBtn.classList.remove('hidden');
+            } else {
+                modalTitle.textContent = 'Nueva Tarea';
+                document.getElementById('task-id').value = '';
+                deleteTaskBtn.classList.add('hidden');
+            }
+            taskModal.classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            taskModal.classList.add('hidden');
+        }
+
+        addTaskFab.addEventListener('click', () => openTaskModal());
+        closeModalBtn.addEventListener('click', closeTaskModal);
+        taskModal.addEventListener('click', (e) => {
+            if (e.target === taskModal) closeTaskModal();
+        });
+
+        taskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const tasksCollectionRef = getTasksCollectionRef();
+            if (!tasksCollectionRef) return;
+            const taskId = document.getElementById('task-id').value;
+            const taskData = {
+                title: document.getElementById('task-title').value,
+                description: document.getElementById('task-description').value,
+                dueDate: document.getElementById('task-due-date').value,
+                quadrant: document.getElementById('task-quadrant').value,
+            };
+            try {
+                if (taskId) {
+                    await updateDoc(doc(tasksCollectionRef, taskId), taskData);
+                } else {
+                    taskData.completed = false;
+                    taskData.createdAt = new Date().toISOString();
+                    await addDoc(tasksCollectionRef, taskData);
+                }
+                closeTaskModal();
+            } catch (error) {
+                console.error("Error al guardar la tarea:", error);
+            }
+        });
+
+        deleteTaskBtn.addEventListener('click', async () => {
+            const taskId = document.getElementById('task-id').value;
+             if (taskId) {
+                const tasksCollectionRef = getTasksCollectionRef();
+                if (!tasksCollectionRef) return;
+                try {
+                    await deleteDoc(doc(tasksCollectionRef, taskId));
+                    closeTaskModal();
+                } catch (error) {
+                    console.error("Error al eliminar la tarea:", error);
+                }
+            }
+        });
+
+        // --- FUNCIONALIDAD DE TAREAS ---
+        async function toggleTaskCompletion(taskId, completed) {
+            const tasksCollectionRef = getTasksCollectionRef();
+            if (!tasksCollectionRef) return;
+            try {
+                await updateDoc(doc(tasksCollectionRef, taskId), { completed });
+            } catch (error) {
+                console.error("Error al actualizar la tarea:", error);
+            }
+        }
+
+        async function addInitialPersonalTasksIfNeeded() {
+            const personalCollectionRef = getTasksCollectionRef('Personal');
+            if (!personalCollectionRef) return;
+            const snapshot = await getDocs(personalCollectionRef);
+            if (!snapshot.empty) return;
+
+            console.log("Añadiendo tareas iniciales al perfil Personal...");
+            const today = new Date();
+            const formatDate = (date, hours, minutes) => {
+                const d = new Date(date);
+                d.setHours(hours, minutes, 0, 0);
+                return d.toISOString().slice(0, 16);
+            };
+            const initialTasks = [
+                { title: 'Desayuno', quadrant: 'do', dueDate: formatDate(today, 8, 0) },
+                { title: 'Ejercicio', quadrant: 'do', dueDate: formatDate(today, 9, 0) },
+                { title: 'Media Mañana', quadrant: 'schedule', dueDate: formatDate(today, 11, 0) },
+                { title: 'Almuerzo', quadrant: 'schedule', dueDate: formatDate(today, 12, 0) },
+                { title: 'Meditación', quadrant: 'delegate', dueDate: formatDate(today, 14, 0) },
+                { title: 'Paseo con Matilda', quadrant: 'delegate', dueDate: formatDate(today, 18, 0) },
+                { title: 'Cena', quadrant: 'delegate', dueDate: formatDate(today, 22, 0) },
+            ];
+            for (const task of initialTasks) {
+                await addDoc(personalCollectionRef, { ...task, completed: false, createdAt: new Date().toISOString() });
+            }
+        }
+
+        // --- DRAG & DROP ---
+        let draggedItemId = null;
+        function handleDragStart(e) {
+            draggedItemId = e.target.dataset.taskId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.target.classList.add('dragging');
+        }
+        matrixContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const quadrant = e.target.closest('.quadrant');
+            if (quadrant) {
+                document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
+                quadrant.classList.add('drag-over');
+                e.dataTransfer.dropEffect = 'move';
+            }
+        });
+        matrixContainer.addEventListener('dragleave', (e) => {
+            e.target.closest('.quadrant')?.classList.remove('drag-over');
+        });
+        matrixContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
+            document.querySelector('.dragging')?.classList.remove('dragging');
+            const quadrant = e.target.closest('.quadrant');
+            if (quadrant && draggedItemId) {
+                const newQuadrantId = quadrant.dataset.quadrantId;
+                const tasksCollectionRef = getTasksCollectionRef();
+                if (!tasksCollectionRef) return;
+                try {
+                    await updateDoc(doc(tasksCollectionRef, draggedItemId), { quadrant: newQuadrantId });
+                    draggedItemId = null;
+                } catch (error) {
+                    console.error("Error al mover la tarea:", error);
+                }
+            }
+        });
+        
+        // --- MENÚ PARA MOVER EN MÓVIL ---
+        function showMoveMenu(button, taskId, currentQuadrantId) {
+            document.querySelectorAll('.move-menu-popup').forEach(menu => menu.remove());
+            const quadrants = [
+                { id: 'do', name: 'Importante y Urgente' },
+                { id: 'schedule', name: 'Importante y No Urgente' },
+                { id: 'delegate', name: 'No Importante y Urgente' },
+                { id: 'delete', name: 'Eliminar' }
+            ];
+            const menu = document.createElement('div');
+            menu.className = 'move-menu-popup absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10';
+            quadrants.filter(q => q.id !== currentQuadrantId).forEach(q => {
+                const item = document.createElement('button');
+                item.className = 'block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+                item.textContent = q.name;
+                item.onclick = async () => {
+                    const tasksCollectionRef = getTasksCollectionRef();
+                    if (!tasksCollectionRef) return;
+                    await updateDoc(doc(tasksCollectionRef, taskId), { quadrant: q.id });
+                    menu.remove();
+                };
+                menu.appendChild(item);
+            });
+            button.parentElement.appendChild(menu);
+            setTimeout(() => {
+                document.body.addEventListener('click', () => menu.remove(), { once: true });
+            }, 0);
+        }
+        
+        // --- EXPORTAR / IMPORTAR ---
+        exportJsonBtn.addEventListener('click', async () => {
+            const allProfilesData = {};
+            const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
+            try {
+                for (const profileId of profileIds) {
+                    const tasksCollectionRef = getTasksCollectionRef(profileId);
+                    if (!tasksCollectionRef) continue;
+                    const querySnapshot = await getDocs(tasksCollectionRef);
+                    allProfilesData[profileId] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                }
+                if (Object.values(allProfilesData).every(arr => arr.length === 0)) {
+                    // No alertar si no hay tareas
+                    return;
+                }
+                const dataStr = JSON.stringify(allProfilesData, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+                const exportFileDefaultName = `bitacora_diaria_denis_${new Date().toISOString().slice(0,10)}.json`;
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+            } catch (error) {
+                console.error("Error al exportar los datos:", error);
+            }
+        });
+
+        importJsonBtn.addEventListener('click', () => {
+            importConfirmModal.classList.remove('hidden');
+        });
+
+        importKeepBtn.addEventListener('click', () => {
+            importConfirmModal.classList.add('hidden');
+            importJsonInput.dataset.deleteExisting = 'false';
+            importJsonInput.click();
+        });
+
+        importReplaceBtn.addEventListener('click', () => {
+            importConfirmModal.classList.add('hidden');
+            importJsonInput.dataset.deleteExisting = 'true';
+            importJsonInput.click();
+        });
+
+        importJsonInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const deleteExisting = importJsonInput.dataset.deleteExisting === 'true';
+
+                    if (deleteExisting) {
+                        await deleteAllTasks();
+                    }
+                    await importTasks(data);
+
+                } catch (error) {
+                    console.error('Error al importar el archivo JSON:', error);
+                } finally {
+                    // Reset file input to allow importing the same file again
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        async function deleteAllTasks() {
+            const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
+            for (const profileId of profileIds) {
+                const tasksCollectionRef = getTasksCollectionRef(profileId);
+                if (!tasksCollectionRef) continue;
+                
+                const querySnapshot = await getDocs(tasksCollectionRef);
+                // Use a batch to delete all documents efficiently
+                const batch = writeBatch(db);
+                querySnapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
+        }
+
+        async function importTasks(data) {
+            const batch = writeBatch(db);
+            for (const profileId in data) {
+                if (Object.prototype.hasOwnProperty.call(data, profileId)) {
+                    const tasksCollectionRef = getTasksCollectionRef(profileId);
+                    if (!tasksCollectionRef) continue;
+                    
+                    const tasksToImport = data[profileId];
+                    for (const task of tasksToImport) {
+                        const { id, ...newTaskData } = task; // Exclude old ID
+                        const newDocRef = doc(tasksCollectionRef); // Create a new doc reference
+                        batch.set(newDocRef, newTaskData);
+                    }
+                }
+            }
+            await batch.commit();
+        }
+
+        // --- INICIALIZACIÓN ---
+        lucide.createIcons();
+    </script>
+</body>
+</html>
