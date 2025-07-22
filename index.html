@@ -186,439 +186,471 @@
         // Importa las funciones que necesitas de los SDKs de Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Configuración de Firebase (proporcionada por el entorno)
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'eisenhower-matrix-app-default';
+        function runApp() {
+            // --- LÓGICA DE FIREBASE ---
+            //
+            // ¡¡¡ IMPORTANTE !!!
+            // Reemplaza este objeto con la configuración de tu propio proyecto de Firebase para que funcione en Vercel.
+            // 1. Ve a tu consola de Firebase: https://console.firebase.google.com/
+            // 2. Selecciona tu proyecto.
+            // 3. Haz clic en el ícono de engranaje (Configuración del proyecto).
+            // 4. En la pestaña "General", baja hasta "Tus apps".
+            // 5. Selecciona la app web (si no tienes una, créala).
+            // 6. En "Configuración del SDK", elige "Configuración" y copia el objeto `firebaseConfig`.
+            // 7. Pega el objeto aquí abajo, reemplazando los valores de "TU_...".
+            //
+            const firebaseConfig = {
+              apiKey: "AIzaSyAXM0efJHJyUQvmuVicqgbkiLnpUiAjb7k",
+              authDomain: "bitacora-denis.firebaseapp.com",
+              projectId: "bitacora-denis",
+              storageBucket: "bitacora-denis.firebasestorage.app",
+              messagingSenderId: "311901732959",
+              appId: "1:311901732959:web:b0fa259944f56700279bea"
+            };
+            
+            const appId = 'bitacora-diaria-denis'; // Un ID único para tu aplicación
 
-        // Inicializa Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+            // --- VERIFICACIÓN DE CONFIGURACIÓN ---
+            const appContainer = document.getElementById('app-container');
+            if (firebaseConfig.apiKey === "TU_API_KEY" || !firebaseConfig.apiKey) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'bg-red-600 text-white p-4 rounded-lg mb-6 text-center font-bold shadow-lg';
+                errorDiv.innerHTML = `
+                    <p class="text-lg">¡CONFIGURACIÓN REQUERIDA!</p>
+                    <p class="font-normal text-sm mt-2">
+                        Para que la aplicación funcione, debes reemplazar los valores de "firebaseConfig" en el código HTML con las claves de tu proyecto de Firebase.
+                    </p>
+                `;
+                appContainer.prepend(errorDiv);
+                // Detiene la ejecución si no hay configuración para evitar más errores en la consola.
+                return; 
+            }
 
-        // Estado de la aplicación
-        let currentProfile = 'Personal'; // Start on Personal profile to see initial tasks
-        let tasks = {};
-        let unsubscribe; // Para la escucha de Firestore
-        let initialLoadDone = false; // Flag para controlar la carga inicial
+            // Inicializa Firebase
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
 
-        // --- ELEMENTOS DEL DOM ---
-        const profileButtons = document.querySelectorAll('.profile-btn');
-        const matrixContainer = document.getElementById('matrix-container');
-        const addTaskFab = document.getElementById('add-task-fab');
-        const taskModal = document.getElementById('task-modal');
-        const closeModalBtn = document.getElementById('close-modal-btn');
-        const taskForm = document.getElementById('task-form');
-        const modalTitle = document.getElementById('modal-title');
-        const deleteTaskBtn = document.getElementById('delete-task-btn');
-        const exportJsonBtn = document.getElementById('export-json-btn');
-        const importJsonBtn = document.getElementById('import-json-btn');
-        const importJsonInput = document.getElementById('import-json-input');
-        const importConfirmModal = document.getElementById('import-confirm-modal');
-        const importKeepBtn = document.getElementById('import-keep-btn');
-        const importReplaceBtn = document.getElementById('import-replace-btn');
+            // Estado de la aplicación
+            let currentProfile = 'Personal'; // Start on Personal profile to see initial tasks
+            let tasks = {};
+            let unsubscribe; // Para la escucha de Firestore
+            let initialLoadDone = false; // Flag para controlar la carga inicial
 
-        // --- LÓGICA DE AUTENTICACIÓN ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                console.log("Usuario autenticado:", user.uid);
-                if (!initialLoadDone) {
-                    await addInitialPersonalTasksIfNeeded();
-                    setActiveProfile(currentProfile);
-                    initialLoadDone = true;
-                }
-            } else {
-                console.log("No hay usuario, intentando iniciar sesión...");
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) {
-                    signInWithCustomToken(auth, token).catch(error => {
-                        console.error("Error al iniciar sesión con token personalizado:", error);
-                    });
+            // --- ELEMENTOS DEL DOM ---
+            const profileButtons = document.querySelectorAll('.profile-btn');
+            const matrixContainer = document.getElementById('matrix-container');
+            const addTaskFab = document.getElementById('add-task-fab');
+            const taskModal = document.getElementById('task-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const taskForm = document.getElementById('task-form');
+            const modalTitle = document.getElementById('modal-title');
+            const deleteTaskBtn = document.getElementById('delete-task-btn');
+            const exportJsonBtn = document.getElementById('export-json-btn');
+            const importJsonBtn = document.getElementById('import-json-btn');
+            const importJsonInput = document.getElementById('import-json-input');
+            const importConfirmModal = document.getElementById('import-confirm-modal');
+            const importKeepBtn = document.getElementById('import-keep-btn');
+            const importReplaceBtn = document.getElementById('import-replace-btn');
+
+            // --- LÓGICA DE AUTENTICACIÓN ---
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    console.log("Usuario autenticado:", user.uid);
+                    if (!initialLoadDone) {
+                        await addInitialPersonalTasksIfNeeded();
+                        setActiveProfile(currentProfile);
+                        initialLoadDone = true;
+                    }
                 } else {
+                    console.log("No hay usuario, intentando iniciar sesión anónima...");
                     signInAnonymously(auth).catch(error => {
                         console.error("Error en la autenticación anónima:", error);
                     });
                 }
-            }
-        });
-
-        // --- MANEJO DE PERFILES ---
-        function setActiveProfile(profileId) {
-            currentProfile = profileId;
-            tasks = {}; // Limpiar tareas al cambiar de perfil
-            profileButtons.forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.profile === profileId);
             });
-            document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
-            subscribeToTasks();
-        }
 
-        profileButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                setActiveProfile(button.dataset.profile);
-            });
-        });
-        
-        // --- LÓGICA DE FIRESTORE ---
-        function getTasksCollectionRef(profileId) {
-            if (!auth.currentUser) return null;
-            const profile = profileId || currentProfile;
-            return collection(db, 'artifacts', appId, 'public', 'data', profile);
-        }
-
-        function subscribeToTasks() {
-            if (unsubscribe) unsubscribe();
-            const tasksCollectionRef = getTasksCollectionRef();
-            if (!tasksCollectionRef) return;
-            unsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => {
-                tasks = {};
-                snapshot.docs.forEach(doc => {
-                    tasks[doc.id] = { id: doc.id, ...doc.data() };
+            // --- MANEJO DE PERFILES ---
+            function setActiveProfile(profileId) {
+                currentProfile = profileId;
+                tasks = {}; // Limpiar tareas al cambiar de perfil
+                profileButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.profile === profileId);
                 });
-                renderAllTasks();
-            }, (error) => {
-                console.error("Error en el listener de Firestore:", error);
+                document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
+                subscribeToTasks();
+            }
+
+            profileButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    setActiveProfile(button.dataset.profile);
+                });
             });
-        }
-        
-        // --- RENDERIZADO DE TAREAS ---
-        function renderAllTasks() {
-            document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
-            Object.values(tasks).forEach(task => {
-                const quadrant = document.querySelector(`[data-quadrant-id="${task.quadrant}"] .tasks-container`);
-                if (quadrant) {
-                    quadrant.appendChild(createTaskCard(task));
-                }
-            });
-            lucide.createIcons();
-        }
+            
+            // --- LÓGICA DE FIRESTORE ---
+            function getTasksCollectionRef(profileId) {
+                if (!auth.currentUser) return null;
+                const profile = profileId || currentProfile;
+                return collection(db, 'artifacts', appId, 'public', 'data', profile);
+            }
 
-        function createTaskCard(task) {
-            const card = document.createElement('div');
-            card.className = `task-card bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${task.completed ? 'opacity-60' : ''}`;
-            card.setAttribute('draggable', 'true');
-            card.dataset.taskId = task.id;
+            function subscribeToTasks() {
+                if (unsubscribe) unsubscribe();
+                const tasksCollectionRef = getTasksCollectionRef();
+                if (!tasksCollectionRef) return;
+                unsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => {
+                    tasks = {};
+                    snapshot.docs.forEach(doc => {
+                        tasks[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+                    renderAllTasks();
+                }, (error) => {
+                    console.error("Error en el listener de Firestore:", error);
+                });
+            }
+            
+            // --- RENDERIZADO DE TAREAS ---
+            function renderAllTasks() {
+                document.querySelectorAll('.tasks-container').forEach(c => c.innerHTML = '');
+                Object.values(tasks).forEach(task => {
+                    const quadrant = document.querySelector(`[data-quadrant-id="${task.quadrant}"] .tasks-container`);
+                    if (quadrant) {
+                        quadrant.appendChild(createTaskCard(task));
+                    }
+                });
+                lucide.createIcons();
+            }
 
-            const formattedDate = task.dueDate ? new Date(task.dueDate).toLocaleString('es-AR', {
-                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-            }) : '';
+            function createTaskCard(task) {
+                const card = document.createElement('div');
+                card.className = `task-card bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${task.completed ? 'opacity-60' : ''}`;
+                card.setAttribute('draggable', 'true');
+                card.dataset.taskId = task.id;
 
-            card.innerHTML = `
-                <div class="flex items-start justify-between">
-                    <h4 class="font-semibold text-gray-800 dark:text-gray-100 break-words ${task.completed ? 'line-through' : ''}">${task.title}</h4>
-                    <input type="checkbox" class="task-checkbox ml-2 mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-gray-100 dark:bg-gray-900" ${task.completed ? 'checked' : ''}>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words ${task.completed ? 'line-through' : ''}">${task.description || ''}</p>
-                ${task.dueDate ? `
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center">
-                    <i data-lucide="calendar" class="h-3 w-3 mr-1.5"></i>
-                    <span>${formattedDate}</span>
-                </div>` : ''}
-                <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div class="text-xs text-gray-400">ID: ${task.id.substring(0, 4)}</div>
-                    <div class="flex items-center space-x-2">
-                        <button class="edit-task-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Editar Tarea">
-                            <i data-lucide="edit-2" class="h-4 w-4"></i>
-                        </button>
-                        <div class="relative md:hidden">
-                            <button class="move-task-menu-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
-                                <i data-lucide="move-arrows" class="h-4 w-4"></i>
+                const formattedDate = task.dueDate ? new Date(task.dueDate).toLocaleString('es-AR', {
+                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                }) : '';
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <h4 class="font-semibold text-gray-800 dark:text-gray-100 break-words ${task.completed ? 'line-through' : ''}">${task.title}</h4>
+                        <input type="checkbox" class="task-checkbox ml-2 mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-gray-100 dark:bg-gray-900" ${task.completed ? 'checked' : ''}>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words ${task.completed ? 'line-through' : ''}">${task.description || ''}</p>
+                    ${task.dueDate ? `
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center">
+                        <i data-lucide="calendar" class="h-3 w-3 mr-1.5"></i>
+                        <span>${formattedDate}</span>
+                    </div>` : ''}
+                    <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                        <div class="text-xs text-gray-400">ID: ${task.id.substring(0, 4)}</div>
+                        <div class="flex items-center space-x-2">
+                            <button class="edit-task-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Editar Tarea">
+                                <i data-lucide="edit-2" class="h-4 w-4"></i>
                             </button>
+                            <div class="relative md:hidden">
+                                <button class="move-task-menu-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                                    <i data-lucide="move-arrows" class="h-4 w-4"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-            card.querySelector('.task-checkbox').addEventListener('change', (e) => toggleTaskCompletion(task.id, e.target.checked));
-            card.querySelector('.edit-task-btn').addEventListener('click', () => openTaskModal(task.id));
-            card.addEventListener('dragstart', handleDragStart);
-            const moveMenuBtn = card.querySelector('.move-task-menu-btn');
-            if (moveMenuBtn) {
-                moveMenuBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    showMoveMenu(e.currentTarget, task.id, task.quadrant);
-                });
-            }
-            return card;
-        }
-
-        // --- MANEJO DEL MODAL DE TAREAS ---
-        function openTaskModal(taskId = null) {
-            taskForm.reset();
-            if (taskId) {
-                const task = tasks[taskId];
-                modalTitle.textContent = 'Editar Tarea';
-                document.getElementById('task-id').value = task.id;
-                document.getElementById('task-title').value = task.title;
-                document.getElementById('task-description').value = task.description || '';
-                document.getElementById('task-due-date').value = task.dueDate ? task.dueDate.substring(0, 16) : '';
-                document.getElementById('task-quadrant').value = task.quadrant;
-                deleteTaskBtn.classList.remove('hidden');
-            } else {
-                modalTitle.textContent = 'Nueva Tarea';
-                document.getElementById('task-id').value = '';
-                deleteTaskBtn.classList.add('hidden');
-            }
-            taskModal.classList.remove('hidden');
-        }
-
-        function closeTaskModal() {
-            taskModal.classList.add('hidden');
-        }
-
-        addTaskFab.addEventListener('click', () => openTaskModal());
-        closeModalBtn.addEventListener('click', closeTaskModal);
-        taskModal.addEventListener('click', (e) => {
-            if (e.target === taskModal) closeTaskModal();
-        });
-
-        taskForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const tasksCollectionRef = getTasksCollectionRef();
-            if (!tasksCollectionRef) return;
-            const taskId = document.getElementById('task-id').value;
-            const taskData = {
-                title: document.getElementById('task-title').value,
-                description: document.getElementById('task-description').value,
-                dueDate: document.getElementById('task-due-date').value,
-                quadrant: document.getElementById('task-quadrant').value,
-            };
-            try {
-                if (taskId) {
-                    await updateDoc(doc(tasksCollectionRef, taskId), taskData);
-                } else {
-                    taskData.completed = false;
-                    taskData.createdAt = new Date().toISOString();
-                    await addDoc(tasksCollectionRef, taskData);
+                `;
+                card.querySelector('.task-checkbox').addEventListener('change', (e) => toggleTaskCompletion(task.id, e.target.checked));
+                card.querySelector('.edit-task-btn').addEventListener('click', () => openTaskModal(task.id));
+                card.addEventListener('dragstart', handleDragStart);
+                const moveMenuBtn = card.querySelector('.move-task-menu-btn');
+                if (moveMenuBtn) {
+                    moveMenuBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showMoveMenu(e.currentTarget, task.id, task.quadrant);
+                    });
                 }
-                closeTaskModal();
-            } catch (error) {
-                console.error("Error al guardar la tarea:", error);
+                return card;
             }
-        });
 
-        deleteTaskBtn.addEventListener('click', async () => {
-            const taskId = document.getElementById('task-id').value;
-             if (taskId) {
+            // --- MANEJO DEL MODAL DE TAREAS ---
+            function openTaskModal(taskId = null) {
+                taskForm.reset();
+                if (taskId) {
+                    const task = tasks[taskId];
+                    modalTitle.textContent = 'Editar Tarea';
+                    document.getElementById('task-id').value = task.id;
+                    document.getElementById('task-title').value = task.title;
+                    document.getElementById('task-description').value = task.description || '';
+                    document.getElementById('task-due-date').value = task.dueDate ? task.dueDate.substring(0, 16) : '';
+                    document.getElementById('task-quadrant').value = task.quadrant;
+                    deleteTaskBtn.classList.remove('hidden');
+                } else {
+                    modalTitle.textContent = 'Nueva Tarea';
+                    document.getElementById('task-id').value = '';
+                    deleteTaskBtn.classList.add('hidden');
+                }
+                taskModal.classList.remove('hidden');
+            }
+
+            function closeTaskModal() {
+                taskModal.classList.add('hidden');
+            }
+
+            addTaskFab.addEventListener('click', () => openTaskModal());
+            closeModalBtn.addEventListener('click', closeTaskModal);
+            taskModal.addEventListener('click', (e) => {
+                if (e.target === taskModal) closeTaskModal();
+            });
+
+            taskForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 const tasksCollectionRef = getTasksCollectionRef();
                 if (!tasksCollectionRef) return;
+                const taskId = document.getElementById('task-id').value;
+                const taskData = {
+                    title: document.getElementById('task-title').value,
+                    description: document.getElementById('task-description').value,
+                    dueDate: document.getElementById('task-due-date').value,
+                    quadrant: document.getElementById('task-quadrant').value,
+                };
                 try {
-                    await deleteDoc(doc(tasksCollectionRef, taskId));
+                    if (taskId) {
+                        await updateDoc(doc(tasksCollectionRef, taskId), taskData);
+                    } else {
+                        taskData.completed = false;
+                        taskData.createdAt = new Date().toISOString();
+                        await addDoc(tasksCollectionRef, taskData);
+                    }
                     closeTaskModal();
                 } catch (error) {
-                    console.error("Error al eliminar la tarea:", error);
+                    console.error("Error al guardar la tarea:", error);
                 }
-            }
-        });
+            });
 
-        // --- FUNCIONALIDAD DE TAREAS ---
-        async function toggleTaskCompletion(taskId, completed) {
-            const tasksCollectionRef = getTasksCollectionRef();
-            if (!tasksCollectionRef) return;
-            try {
-                await updateDoc(doc(tasksCollectionRef, taskId), { completed });
-            } catch (error) {
-                console.error("Error al actualizar la tarea:", error);
-            }
-        }
+            deleteTaskBtn.addEventListener('click', async () => {
+                const taskId = document.getElementById('task-id').value;
+                 if (taskId) {
+                    const tasksCollectionRef = getTasksCollectionRef();
+                    if (!tasksCollectionRef) return;
+                    try {
+                        await deleteDoc(doc(tasksCollectionRef, taskId));
+                        closeTaskModal();
+                    } catch (error) {
+                        console.error("Error al eliminar la tarea:", error);
+                    }
+                }
+            });
 
-        async function addInitialPersonalTasksIfNeeded() {
-            const personalCollectionRef = getTasksCollectionRef('Personal');
-            if (!personalCollectionRef) return;
-            const snapshot = await getDocs(personalCollectionRef);
-            if (!snapshot.empty) return;
-
-            console.log("Añadiendo tareas iniciales al perfil Personal...");
-            const today = new Date();
-            const formatDate = (date, hours, minutes) => {
-                const d = new Date(date);
-                d.setHours(hours, minutes, 0, 0);
-                return d.toISOString().slice(0, 16);
-            };
-            const initialTasks = [
-                { title: 'Desayuno', quadrant: 'do', dueDate: formatDate(today, 8, 0) },
-                { title: 'Ejercicio', quadrant: 'do', dueDate: formatDate(today, 9, 0) },
-                { title: 'Media Mañana', quadrant: 'schedule', dueDate: formatDate(today, 11, 0) },
-                { title: 'Almuerzo', quadrant: 'schedule', dueDate: formatDate(today, 12, 0) },
-                { title: 'Meditación', quadrant: 'delegate', dueDate: formatDate(today, 14, 0) },
-                { title: 'Paseo con Matilda', quadrant: 'delegate', dueDate: formatDate(today, 18, 0) },
-                { title: 'Cena', quadrant: 'delegate', dueDate: formatDate(today, 22, 0) },
-            ];
-            for (const task of initialTasks) {
-                await addDoc(personalCollectionRef, { ...task, completed: false, createdAt: new Date().toISOString() });
-            }
-        }
-
-        // --- DRAG & DROP ---
-        let draggedItemId = null;
-        function handleDragStart(e) {
-            draggedItemId = e.target.dataset.taskId;
-            e.dataTransfer.effectAllowed = 'move';
-            e.target.classList.add('dragging');
-        }
-        matrixContainer.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const quadrant = e.target.closest('.quadrant');
-            if (quadrant) {
-                document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
-                quadrant.classList.add('drag-over');
-                e.dataTransfer.dropEffect = 'move';
-            }
-        });
-        matrixContainer.addEventListener('dragleave', (e) => {
-            e.target.closest('.quadrant')?.classList.remove('drag-over');
-        });
-        matrixContainer.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
-            document.querySelector('.dragging')?.classList.remove('dragging');
-            const quadrant = e.target.closest('.quadrant');
-            if (quadrant && draggedItemId) {
-                const newQuadrantId = quadrant.dataset.quadrantId;
+            // --- FUNCIONALIDAD DE TAREAS ---
+            async function toggleTaskCompletion(taskId, completed) {
                 const tasksCollectionRef = getTasksCollectionRef();
                 if (!tasksCollectionRef) return;
                 try {
-                    await updateDoc(doc(tasksCollectionRef, draggedItemId), { quadrant: newQuadrantId });
-                    draggedItemId = null;
+                    await updateDoc(doc(tasksCollectionRef, taskId), { completed });
                 } catch (error) {
-                    console.error("Error al mover la tarea:", error);
+                    console.error("Error al actualizar la tarea:", error);
                 }
             }
-        });
-        
-        // --- MENÚ PARA MOVER EN MÓVIL ---
-        function showMoveMenu(button, taskId, currentQuadrantId) {
-            document.querySelectorAll('.move-menu-popup').forEach(menu => menu.remove());
-            const quadrants = [
-                { id: 'do', name: 'Importante y Urgente' },
-                { id: 'schedule', name: 'Importante y No Urgente' },
-                { id: 'delegate', name: 'No Importante y Urgente' },
-                { id: 'delete', name: 'Eliminar' }
-            ];
-            const menu = document.createElement('div');
-            menu.className = 'move-menu-popup absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10';
-            quadrants.filter(q => q.id !== currentQuadrantId).forEach(q => {
-                const item = document.createElement('button');
-                item.className = 'block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
-                item.textContent = q.name;
-                item.onclick = async () => {
+
+            async function addInitialPersonalTasksIfNeeded() {
+                const personalCollectionRef = getTasksCollectionRef('Personal');
+                if (!personalCollectionRef) return;
+                const snapshot = await getDocs(personalCollectionRef);
+                if (!snapshot.empty) return;
+
+                console.log("Añadiendo tareas iniciales al perfil Personal...");
+                const today = new Date();
+                const formatDate = (date, hours, minutes) => {
+                    const d = new Date(date);
+                    d.setHours(hours, minutes, 0, 0);
+                    return d.toISOString().slice(0, 16);
+                };
+                const initialTasks = [
+                    { title: 'Desayuno', quadrant: 'do', dueDate: formatDate(today, 8, 0) },
+                    { title: 'Ejercicio', quadrant: 'do', dueDate: formatDate(today, 9, 0) },
+                    { title: 'Media Mañana', quadrant: 'schedule', dueDate: formatDate(today, 11, 0) },
+                    { title: 'Almuerzo', quadrant: 'schedule', dueDate: formatDate(today, 12, 0) },
+                    { title: 'Meditación', quadrant: 'delegate', dueDate: formatDate(today, 14, 0) },
+                    { title: 'Paseo con Matilda', quadrant: 'delegate', dueDate: formatDate(today, 18, 0) },
+                    { title: 'Cena', quadrant: 'delegate', dueDate: formatDate(today, 22, 0) },
+                ];
+                for (const task of initialTasks) {
+                    await addDoc(personalCollectionRef, { ...task, completed: false, createdAt: new Date().toISOString() });
+                }
+            }
+
+            // --- DRAG & DROP ---
+            let draggedItemId = null;
+            function handleDragStart(e) {
+                draggedItemId = e.target.dataset.taskId;
+                e.dataTransfer.effectAllowed = 'move';
+                e.target.classList.add('dragging');
+            }
+            matrixContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const quadrant = e.target.closest('.quadrant');
+                if (quadrant) {
+                    document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
+                    quadrant.classList.add('drag-over');
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            });
+            matrixContainer.addEventListener('dragleave', (e) => {
+                e.target.closest('.quadrant')?.classList.remove('drag-over');
+            });
+            matrixContainer.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.drag-over').forEach(q => q.classList.remove('drag-over'));
+                document.querySelector('.dragging')?.classList.remove('dragging');
+                const quadrant = e.target.closest('.quadrant');
+                if (quadrant && draggedItemId) {
+                    const newQuadrantId = quadrant.dataset.quadrantId;
                     const tasksCollectionRef = getTasksCollectionRef();
                     if (!tasksCollectionRef) return;
-                    await updateDoc(doc(tasksCollectionRef, taskId), { quadrant: q.id });
-                    menu.remove();
-                };
-                menu.appendChild(item);
+                    try {
+                        await updateDoc(doc(tasksCollectionRef, draggedItemId), { quadrant: newQuadrantId });
+                        draggedItemId = null;
+                    } catch (error) {
+                        console.error("Error al mover la tarea:", error);
+                    }
+                }
             });
-            button.parentElement.appendChild(menu);
-            setTimeout(() => {
-                document.body.addEventListener('click', () => menu.remove(), { once: true });
-            }, 0);
-        }
-        
-        // --- EXPORTAR / IMPORTAR ---
-        exportJsonBtn.addEventListener('click', async () => {
-            const allProfilesData = {};
-            const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
-            try {
+            
+            // --- MENÚ PARA MOVER EN MÓVIL ---
+            function showMoveMenu(button, taskId, currentQuadrantId) {
+                document.querySelectorAll('.move-menu-popup').forEach(menu => menu.remove());
+                const quadrants = [
+                    { id: 'do', name: 'Importante y Urgente' },
+                    { id: 'schedule', name: 'Importante y No Urgente' },
+                    { id: 'delegate', name: 'No Importante y Urgente' },
+                    { id: 'delete', name: 'Eliminar' }
+                ];
+                const menu = document.createElement('div');
+                menu.className = 'move-menu-popup absolute right-0 bottom-full mb-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10';
+                quadrants.filter(q => q.id !== currentQuadrantId).forEach(q => {
+                    const item = document.createElement('button');
+                    item.className = 'block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+                    item.textContent = q.name;
+                    item.onclick = async () => {
+                        const tasksCollectionRef = getTasksCollectionRef();
+                        if (!tasksCollectionRef) return;
+                        await updateDoc(doc(tasksCollectionRef, taskId), { quadrant: q.id });
+                        menu.remove();
+                    };
+                    menu.appendChild(item);
+                });
+                button.parentElement.appendChild(menu);
+                setTimeout(() => {
+                    document.body.addEventListener('click', () => menu.remove(), { once: true });
+                }, 0);
+            }
+            
+            // --- EXPORTAR / IMPORTAR ---
+            exportJsonBtn.addEventListener('click', async () => {
+                const allProfilesData = {};
+                const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
+                try {
+                    for (const profileId of profileIds) {
+                        const tasksCollectionRef = getTasksCollectionRef(profileId);
+                        if (!tasksCollectionRef) continue;
+                        const querySnapshot = await getDocs(tasksCollectionRef);
+                        allProfilesData[profileId] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    }
+                    if (Object.values(allProfilesData).every(arr => arr.length === 0)) {
+                        // No alertar si no hay tareas
+                        return;
+                    }
+                    const dataStr = JSON.stringify(allProfilesData, null, 2);
+                    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+                    const exportFileDefaultName = `bitacora_diaria_denis_${new Date().toISOString().slice(0,10)}.json`;
+                    const linkElement = document.createElement('a');
+                    linkElement.setAttribute('href', dataUri);
+                    linkElement.setAttribute('download', exportFileDefaultName);
+                    linkElement.click();
+                } catch (error) {
+                    console.error("Error al exportar los datos:", error);
+                }
+            });
+
+            importJsonBtn.addEventListener('click', () => {
+                importConfirmModal.classList.remove('hidden');
+            });
+
+            importKeepBtn.addEventListener('click', () => {
+                importConfirmModal.classList.add('hidden');
+                importJsonInput.dataset.deleteExisting = 'false';
+                importJsonInput.click();
+            });
+
+            importReplaceBtn.addEventListener('click', () => {
+                importConfirmModal.classList.add('hidden');
+                importJsonInput.dataset.deleteExisting = 'true';
+                importJsonInput.click();
+            });
+
+            importJsonInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        const deleteExisting = importJsonInput.dataset.deleteExisting === 'true';
+
+                        if (deleteExisting) {
+                            await deleteAllTasks();
+                        }
+                        await importTasks(data);
+
+                    } catch (error) {
+                        console.error('Error al importar el archivo JSON:', error);
+                    } finally {
+                        // Reset file input to allow importing the same file again
+                        event.target.value = '';
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            async function deleteAllTasks() {
+                const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
                 for (const profileId of profileIds) {
                     const tasksCollectionRef = getTasksCollectionRef(profileId);
                     if (!tasksCollectionRef) continue;
+                    
                     const querySnapshot = await getDocs(tasksCollectionRef);
-                    allProfilesData[profileId] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Use a batch to delete all documents efficiently
+                    const batch = writeBatch(db);
+                    querySnapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
                 }
-                if (Object.values(allProfilesData).every(arr => arr.length === 0)) {
-                    // No alertar si no hay tareas
-                    return;
-                }
-                const dataStr = JSON.stringify(allProfilesData, null, 2);
-                const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-                const exportFileDefaultName = `bitacora_diaria_denis_${new Date().toISOString().slice(0,10)}.json`;
-                const linkElement = document.createElement('a');
-                linkElement.setAttribute('href', dataUri);
-                linkElement.setAttribute('download', exportFileDefaultName);
-                linkElement.click();
-            } catch (error) {
-                console.error("Error al exportar los datos:", error);
             }
-        });
 
-        importJsonBtn.addEventListener('click', () => {
-            importConfirmModal.classList.remove('hidden');
-        });
-
-        importKeepBtn.addEventListener('click', () => {
-            importConfirmModal.classList.add('hidden');
-            importJsonInput.dataset.deleteExisting = 'false';
-            importJsonInput.click();
-        });
-
-        importReplaceBtn.addEventListener('click', () => {
-            importConfirmModal.classList.add('hidden');
-            importJsonInput.dataset.deleteExisting = 'true';
-            importJsonInput.click();
-        });
-
-        importJsonInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    const deleteExisting = importJsonInput.dataset.deleteExisting === 'true';
-
-                    if (deleteExisting) {
-                        await deleteAllTasks();
-                    }
-                    await importTasks(data);
-
-                } catch (error) {
-                    console.error('Error al importar el archivo JSON:', error);
-                } finally {
-                    // Reset file input to allow importing the same file again
-                    event.target.value = '';
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        async function deleteAllTasks() {
-            const profileIds = ['Círculo', 'Polo IT Chaco', 'Personal'];
-            for (const profileId of profileIds) {
-                const tasksCollectionRef = getTasksCollectionRef(profileId);
-                if (!tasksCollectionRef) continue;
-                
-                const querySnapshot = await getDocs(tasksCollectionRef);
-                // Use a batch to delete all documents efficiently
+            async function importTasks(data) {
                 const batch = writeBatch(db);
-                querySnapshot.docs.forEach(doc => {
-                    batch.delete(doc.ref);
-                });
+                for (const profileId in data) {
+                    if (Object.prototype.hasOwnProperty.call(data, profileId)) {
+                        const tasksCollectionRef = getTasksCollectionRef(profileId);
+                        if (!tasksCollectionRef) continue;
+                        
+                        const tasksToImport = data[profileId];
+                        for (const task of tasksToImport) {
+                            const { id, ...newTaskData } = task; // Exclude old ID
+                            const newDocRef = doc(tasksCollectionRef); // Create a new doc reference
+                            batch.set(newDocRef, newTaskData);
+                        }
+                    }
+                }
                 await batch.commit();
             }
+
+            // --- INICIALIZACIÓN ---
+            lucide.createIcons();
         }
 
-        async function importTasks(data) {
-            const batch = writeBatch(db);
-            for (const profileId in data) {
-                if (Object.prototype.hasOwnProperty.call(data, profileId)) {
-                    const tasksCollectionRef = getTasksCollectionRef(profileId);
-                    if (!tasksCollectionRef) continue;
-                    
-                    const tasksToImport = data[profileId];
-                    for (const task of tasksToImport) {
-                        const { id, ...newTaskData } = task; // Exclude old ID
-                        const newDocRef = doc(tasksCollectionRef); // Create a new doc reference
-                        batch.set(newDocRef, newTaskData);
-                    }
-                }
-            }
-            await batch.commit();
-        }
-
-        // --- INICIALIZACIÓN ---
-        lucide.createIcons();
+        runApp();
     </script>
 </body>
 </html>
