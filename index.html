@@ -36,24 +36,37 @@
             font-weight: 600;
         }
         /* Custom scrollbar for dark mode */
-        .tasks-container::-webkit-scrollbar {
+        .tasks-container::-webkit-scrollbar, .link-list-container::-webkit-scrollbar {
             width: 8px;
         }
-        .tasks-container::-webkit-scrollbar-track {
+        .tasks-container::-webkit-scrollbar-track, .link-list-container::-webkit-scrollbar-track {
             background: transparent;
         }
-        .tasks-container::-webkit-scrollbar-thumb {
+        .tasks-container::-webkit-scrollbar-thumb, .link-list-container::-webkit-scrollbar-thumb {
             background-color: #4b5563; /* gray-600 */
             border-radius: 20px;
             border: 3px solid transparent;
             background-clip: content-box;
         }
-        .tasks-container::-webkit-scrollbar-thumb:hover {
+        .tasks-container::-webkit-scrollbar-thumb:hover, .link-list-container::-webkit-scrollbar-thumb:hover {
             background-color: #6b7280; /* gray-500 */
         }
         /* Style for datetime-local icon in dark mode */
         input[type="datetime-local"]::-webkit-calendar-picker-indicator {
             filter: invert(0.8);
+        }
+        /* Spinner for Gemini button */
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid #fff;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -143,8 +156,14 @@
                     <label for="task-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título</label>
                     <input type="text" id="task-title" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required>
                 </div>
-                <div class="mb-4">
-                    <label for="task-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
+                 <div class="mb-4">
+                    <div class="flex justify-between items-center mb-1">
+                         <label for="task-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Descripción</label>
+                         <button type="button" id="gemini-breakdown-btn" class="flex items-center space-x-2 text-sm text-blue-500 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                             <span id="gemini-btn-text">✨ Desglosar Tarea</span>
+                             <div id="gemini-spinner" class="spinner hidden"></div>
+                         </button>
+                    </div>
                     <textarea id="task-description" rows="3" class="w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
                 </div>
                 <div class="mb-4">
@@ -159,6 +178,17 @@
                         <option value="delegate">No Importante y Urgente</option>
                         <option value="delete">No Importante y No Urgente</option>
                     </select>
+                </div>
+                <!-- Link Management Section -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Enlaces</label>
+                    <div class="flex space-x-2 mb-2">
+                        <input type="url" id="task-link-input" placeholder="https://ejemplo.com" class="flex-grow w-full border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <button type="button" id="add-link-btn" class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 font-bold py-2 px-3 rounded-lg">Añadir</button>
+                    </div>
+                    <div id="link-list-container" class="max-h-28 overflow-y-auto space-y-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md">
+                        <!-- Links will be added here dynamically -->
+                    </div>
                 </div>
                 <div class="flex justify-end space-x-3">
                     <button type="button" id="delete-task-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg hidden">Eliminar</button>
@@ -189,25 +219,13 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         function runApp() {
-            // --- LÓGICA DE FIREBASE ---
-            //
-            // ¡¡¡ IMPORTANTE !!!
-            // Reemplaza este objeto con la configuración de tu propio proyecto de Firebase para que funcione en Vercel.
-            // 1. Ve a tu consola de Firebase: https://console.firebase.google.com/
-            // 2. Selecciona tu proyecto.
-            // 3. Haz clic en el ícono de engranaje (Configuración del proyecto).
-            // 4. En la pestaña "General", baja hasta "Tus apps".
-            // 5. Selecciona la app web (si no tienes una, créala).
-            // 6. En "Configuración del SDK", elige "Configuración" y copia el objeto `firebaseConfig`.
-            // 7. Pega el objeto aquí abajo, reemplazando los valores de "TU_...".
-            //
             const firebaseConfig = {
-              apiKey: "AIzaSyAXM0efJHJyUQvmuVicqgbkiLnpUiAjb7k",
-              authDomain: "bitacora-denis.firebaseapp.com",
-              projectId: "bitacora-denis",
-              storageBucket: "bitacora-denis.firebasestorage.app",
-              messagingSenderId: "311901732959",
-              appId: "1:311901732959:web:b0fa259944f56700279bea"
+                apiKey: "AIzaSyAXM0efJHJyUQvmuVicqgbkiLnpUiAjb7k",
+                authDomain: "bitacora-denis.firebaseapp.com",
+                projectId: "bitacora-denis",
+                storageBucket: "bitacora-denis.firebasestorage.app",
+                messagingSenderId: "311901732959",
+                appId: "1:311901732959:web:b0fa259944f56700279bea"
             };
             
             const appId = 'bitacora-diaria-denis'; // Un ID único para tu aplicación
@@ -217,14 +235,8 @@
             if (firebaseConfig.apiKey === "TU_API_KEY" || !firebaseConfig.apiKey) {
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'bg-red-600 text-white p-4 rounded-lg mb-6 text-center font-bold shadow-lg';
-                errorDiv.innerHTML = `
-                    <p class="text-lg">¡CONFIGURACIÓN REQUERIDA!</p>
-                    <p class="font-normal text-sm mt-2">
-                        Para que la aplicación funcione, debes reemplazar los valores de "firebaseConfig" en el código HTML con las claves de tu proyecto de Firebase.
-                    </p>
-                `;
+                errorDiv.innerHTML = `<p class="text-lg">¡CONFIGURACIÓN REQUERIDA!</p><p class="font-normal text-sm mt-2">Para que la aplicación funcione, debes reemplazar los valores de "firebaseConfig" en el código HTML con las claves de tu proyecto de Firebase.</p>`;
                 appContainer.prepend(errorDiv);
-                // Detiene la ejecución si no hay configuración para evitar más errores en la consola.
                 return; 
             }
 
@@ -234,10 +246,10 @@
             const auth = getAuth(app);
 
             // Estado de la aplicación
-            let currentProfile = 'Personal'; // Start on Personal profile to see initial tasks
+            let currentProfile = 'Personal';
             let tasks = {};
-            let unsubscribe; // Para la escucha de Firestore
-            let initialLoadDone = false; // Flag para controlar la carga inicial
+            let unsubscribe;
+            let initialLoadDone = false;
 
             // --- ELEMENTOS DEL DOM ---
             const profileButtons = document.querySelectorAll('.profile-btn');
@@ -254,6 +266,14 @@
             const importConfirmModal = document.getElementById('import-confirm-modal');
             const importKeepBtn = document.getElementById('import-keep-btn');
             const importReplaceBtn = document.getElementById('import-replace-btn');
+            const addLinkBtn = document.getElementById('add-link-btn');
+            const linkInput = document.getElementById('task-link-input');
+            const linkListContainer = document.getElementById('link-list-container');
+            const geminiBreakdownBtn = document.getElementById('gemini-breakdown-btn');
+            const geminiBtnText = document.getElementById('gemini-btn-text');
+            const geminiSpinner = document.getElementById('gemini-spinner');
+            const taskTitleInput = document.getElementById('task-title');
+            const taskDescriptionTextarea = document.getElementById('task-description');
 
             // --- LÓGICA DE AUTENTICACIÓN ---
             onAuthStateChanged(auth, async (user) => {
@@ -275,7 +295,7 @@
             // --- MANEJO DE PERFILES ---
             function setActiveProfile(profileId) {
                 currentProfile = profileId;
-                tasks = {}; // Limpiar tareas al cambiar de perfil
+                tasks = {};
                 profileButtons.forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.profile === profileId);
                 });
@@ -332,6 +352,21 @@
                 const formattedDate = task.dueDate ? new Date(task.dueDate).toLocaleString('es-AR', {
                     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 }) : '';
+                
+                let linksHTML = '';
+                if (task.links && task.links.length > 0) {
+                    linksHTML += '<div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">';
+                    task.links.forEach(link => {
+                        linksHTML += `
+                            <a href="${link}" target="_blank" rel="noopener noreferrer" class="flex items-center text-xs text-blue-500 hover:underline">
+                                <i data-lucide="link-2" class="h-3 w-3 mr-1.5 flex-shrink-0"></i>
+                                <span class="truncate">${link}</span>
+                            </a>
+                        `;
+                    });
+                    linksHTML += '</div>';
+                }
+
 
                 card.innerHTML = `
                     <div class="flex items-start justify-between">
@@ -344,6 +379,7 @@
                         <i data-lucide="calendar" class="h-3 w-3 mr-1.5"></i>
                         <span>${formattedDate}</span>
                     </div>` : ''}
+                    ${linksHTML}
                     <div class="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                         <div class="text-xs text-gray-400">ID: ${task.id.substring(0, 4)}</div>
                         <div class="flex items-center space-x-2">
@@ -352,7 +388,7 @@
                             </button>
                             <div class="relative md:hidden">
                                 <button class="move-task-menu-btn text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
-                                    <i data-lucide="move-arrows" class="h-4 w-4"></i>
+                                    <i data-lucide="move" class="h-4 w-4"></i>
                                 </button>
                             </div>
                         </div>
@@ -374,20 +410,29 @@
             // --- MANEJO DEL MODAL DE TAREAS ---
             function openTaskModal(taskId = null) {
                 taskForm.reset();
+                linkListContainer.innerHTML = ''; // Clear links
                 if (taskId) {
                     const task = tasks[taskId];
                     modalTitle.textContent = 'Editar Tarea';
                     document.getElementById('task-id').value = task.id;
-                    document.getElementById('task-title').value = task.title;
-                    document.getElementById('task-description').value = task.description || '';
+                    taskTitleInput.value = task.title;
+                    taskDescriptionTextarea.value = task.description || '';
                     document.getElementById('task-due-date').value = task.dueDate ? task.dueDate.substring(0, 16) : '';
                     document.getElementById('task-quadrant').value = task.quadrant;
+                    if (task.links) {
+                        task.links.forEach(addLinkToModalList);
+                    }
                     deleteTaskBtn.classList.remove('hidden');
                 } else {
                     modalTitle.textContent = 'Nueva Tarea';
                     document.getElementById('task-id').value = '';
+                    // Set default date to now
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    document.getElementById('task-due-date').value = now.toISOString().slice(0,16);
                     deleteTaskBtn.classList.add('hidden');
                 }
+                taskTitleInput.dispatchEvent(new Event('input')); // Trigger input event to check Gemini button state
                 taskModal.classList.remove('hidden');
             }
 
@@ -406,11 +451,15 @@
                 const tasksCollectionRef = getTasksCollectionRef();
                 if (!tasksCollectionRef) return;
                 const taskId = document.getElementById('task-id').value;
+                
+                const links = Array.from(linkListContainer.querySelectorAll('.link-item')).map(item => item.dataset.url);
+
                 const taskData = {
-                    title: document.getElementById('task-title').value,
-                    description: document.getElementById('task-description').value,
+                    title: taskTitleInput.value,
+                    description: taskDescriptionTextarea.value,
                     dueDate: document.getElementById('task-due-date').value,
                     quadrant: document.getElementById('task-quadrant').value,
+                    links: links
                 };
                 try {
                     if (taskId) {
@@ -428,7 +477,7 @@
 
             deleteTaskBtn.addEventListener('click', async () => {
                 const taskId = document.getElementById('task-id').value;
-                 if (taskId) {
+                 if (taskId && confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
                     const tasksCollectionRef = getTasksCollectionRef();
                     if (!tasksCollectionRef) return;
                     try {
@@ -465,18 +514,118 @@
                     return d.toISOString().slice(0, 16);
                 };
                 const initialTasks = [
-                    { title: 'Desayuno', quadrant: 'do', dueDate: formatDate(today, 8, 0) },
-                    { title: 'Ejercicio', quadrant: 'do', dueDate: formatDate(today, 9, 0) },
-                    { title: 'Media Mañana', quadrant: 'schedule', dueDate: formatDate(today, 11, 0) },
-                    { title: 'Almuerzo', quadrant: 'schedule', dueDate: formatDate(today, 12, 0) },
-                    { title: 'Meditación', quadrant: 'delegate', dueDate: formatDate(today, 14, 0) },
-                    { title: 'Paseo con Matilda', quadrant: 'delegate', dueDate: formatDate(today, 18, 0) },
-                    { title: 'Cena', quadrant: 'delegate', dueDate: formatDate(today, 22, 0) },
+                    { title: 'Desayuno', quadrant: 'do', dueDate: formatDate(today, 8, 0), links: [] },
+                    { title: 'Ejercicio', quadrant: 'do', dueDate: formatDate(today, 9, 0), links: [] },
+                    { title: 'Media Mañana', quadrant: 'schedule', dueDate: formatDate(today, 11, 0), links: [] },
+                    { title: 'Almuerzo', quadrant: 'schedule', dueDate: formatDate(today, 12, 0), links: [] },
+                    { title: 'Meditación', quadrant: 'delegate', dueDate: formatDate(today, 14, 0), links: [] },
+                    { title: 'Paseo con Matilda', quadrant: 'delegate', dueDate: formatDate(today, 18, 0), links: [] },
+                    { title: 'Cena', quadrant: 'delegate', dueDate: formatDate(today, 22, 0), links: [] },
                 ];
                 for (const task of initialTasks) {
                     await addDoc(personalCollectionRef, { ...task, completed: false, createdAt: new Date().toISOString() });
                 }
             }
+
+            // --- GESTIÓN DE ENLACES EN MODAL ---
+            function addLinkToModalList(url) {
+                const listItem = document.createElement('div');
+                listItem.className = 'link-item flex items-center justify-between bg-white dark:bg-gray-700 p-1.5 rounded';
+                listItem.dataset.url = url;
+                listItem.innerHTML = `
+                    <span class="text-sm truncate">${url}</span>
+                    <button type="button" class="remove-link-btn text-red-500 hover:text-red-700 ml-2">
+                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    </button>
+                `;
+                listItem.querySelector('.remove-link-btn').addEventListener('click', () => listItem.remove());
+                linkListContainer.appendChild(listItem);
+                lucide.createIcons();
+            }
+
+            addLinkBtn.addEventListener('click', () => {
+                const url = linkInput.value.trim();
+                if (url) {
+                    try {
+                        new URL(url); // Validate URL format
+                        addLinkToModalList(url);
+                        linkInput.value = '';
+                    } catch (_) {
+                        // Simple feedback for invalid URL
+                    }
+                }
+                linkInput.focus();
+            });
+
+            // --- GEMINI API: DESGLOSAR TAREA ---
+            taskTitleInput.addEventListener('input', () => {
+                geminiBreakdownBtn.disabled = !taskTitleInput.value.trim();
+            });
+
+            geminiBreakdownBtn.addEventListener('click', async () => {
+                const title = taskTitleInput.value.trim();
+                const description = taskDescriptionTextarea.value.trim();
+                
+                if (!title) return;
+
+                geminiBreakdownBtn.disabled = true;
+                geminiBtnText.classList.add('hidden');
+                geminiSpinner.classList.remove('hidden');
+
+                try {
+                    const prompt = `Eres un asistente de productividad experto. Desglosa la siguiente tarea en una lista de 3 a 5 subtareas o pasos accionables. Tarea: "${title}". Descripción adicional: "${description}". Responde únicamente con un array JSON de objetos, donde cada objeto tiene una clave "subtask" con la descripción de la subtarea.`;
+                    
+                    let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = { 
+                        contents: chatHistory,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: { "subtask": { "type": "STRING" } },
+                                    required: ["subtask"]
+                                }
+                            }
+                        }
+                    };
+                    const apiKey = ""; // Provided by the environment
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                        const subtasksText = result.candidates[0].content.parts[0].text;
+                        const subtasks = JSON.parse(subtasksText);
+                        
+                        let breakdown = '\n\nPasos sugeridos:\n';
+                        subtasks.forEach(item => {
+                            breakdown += `- ${item.subtask}\n`;
+                        });
+                        
+                        taskDescriptionTextarea.value += breakdown;
+                    }
+
+                } catch (error) {
+                    console.error("Error al desglosar la tarea con Gemini:", error);
+                    taskDescriptionTextarea.value += "\n\nNo se pudieron generar las subtareas.";
+                } finally {
+                    geminiBreakdownBtn.disabled = false;
+                    geminiBtnText.classList.remove('hidden');
+                    geminiSpinner.classList.add('hidden');
+                }
+            });
 
             // --- DRAG & DROP ---
             let draggedItemId = null;
@@ -556,7 +705,6 @@
                         allProfilesData[profileId] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     }
                     if (Object.values(allProfilesData).every(arr => arr.length === 0)) {
-                        // No alertar si no hay tareas
                         return;
                     }
                     const dataStr = JSON.stringify(allProfilesData, null, 2);
@@ -605,7 +753,6 @@
                     } catch (error) {
                         console.error('Error al importar el archivo JSON:', error);
                     } finally {
-                        // Reset file input to allow importing the same file again
                         event.target.value = '';
                     }
                 };
@@ -619,7 +766,6 @@
                     if (!tasksCollectionRef) continue;
                     
                     const querySnapshot = await getDocs(tasksCollectionRef);
-                    // Use a batch to delete all documents efficiently
                     const batch = writeBatch(db);
                     querySnapshot.docs.forEach(doc => {
                         batch.delete(doc.ref);
@@ -637,8 +783,8 @@
                         
                         const tasksToImport = data[profileId];
                         for (const task of tasksToImport) {
-                            const { id, ...newTaskData } = task; // Exclude old ID
-                            const newDocRef = doc(tasksCollectionRef); // Create a new doc reference
+                            const { id, ...newTaskData } = task;
+                            const newDocRef = doc(tasksCollectionRef);
                             batch.set(newDocRef, newTaskData);
                         }
                     }
